@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// login attempts
+// max otp generation attemts (for login or any service withi app)
+model User {
+  id             Int     @id @default(autoincrement())
+  name           String
+  userCode       String  @unique
+  password       String
+  passwordExpiry String // decide to to put expiry or not in 1st version
+  gender         Int
+  salutation     Int
+  isActive      Boolean
+  mobileNumber   String
+  email          String
+
+  authAuditDetails UserAuthAudit[]
+}
+
+model UserAuthAudit {
+  id               Int      @id @default(autoincrement())
+  eventTime        DateTime @default(now())
+  ipAddress        String
+  userAgent        String
+  isSuccessful     String
+  failureReason    String
+  loginRetryCount  Int
+  fk_id_event_type Int
+  fk_id_user       Int
+
+  userDetails User  @relation(fields: [fk_id_user], references: [id])
+  eventType   Event @relation(fields: [fk_id_event_type], references: [id])
+}
+
+model Event {
+  id               Int             @id @default(autoincrement())
+  type             String
+  userAuditDetails UserAuthAudit[]
+}
+
+model Sample {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Vehicle {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  description        String?
+  isActive           Boolean  @default(true)
+  registrationNumber String   @unique
+  capacity           Float? // store it in Tons
+  fuelType           Int // have some config like option.js for this kind of value to avoid DB table
+  createdAt          DateTime @default(now())
+  lastModifiedDate   DateTime @updatedAt
+  fk_id_owner        Int
+  trips     Trip[]
+  documents VehicleDocument[]
+  owner    Owner @relation(fields: [fk_id_owner], references: [id])
+
+}
+
+model Trip {
+  id             Int                 @id @default(autoincrement())
+  source         String
+  destination    String
+  isActive       Boolean             @default(true)
+  goodsCarried   String
+  description    String
+  startTime      DateTime
+  endTime        DateTime
+  fk_id_vehicle  Int
+  fk_id_customer Int
+  fk_id_owner    Int
+  vehicle        Vehicle             @relation(fields: [fk_id_vehicle], references: [id])
+  driversMapped  DriverTripMapping[]
+  customer       Customer            @relation(fields: [fk_id_customer], references: [id])
+  tripDetails    TripDetails?
+  owner          Owner? @relation(fields: [fk_id_owner], references: [id])
+
+}
+
+model DriverTripMapping {
+  id                 Int     @id @default(autoincrement())
+  isActive           Boolean @default(true)
+  fk_id_driver       Int
+  fk_id_trip         Int
+  adavnceAmountGiven Int
+  driver             Driver  @relation(fields: [fk_id_driver], references: [id])
+  trip               Trip    @relation(fields: [fk_id_trip], references: [id])
+}
+
+model TripDetails {
+  id                          Int     @id @default(autoincrement())
+  isActive                    Boolean @default(true)
+  advance_given               Float // make sure to notify not to include driver expenses if already given in trip details
+  fuelCost                    Float
+  tollCost                    Float
+  amountReceived              Float
+  maintainenceCost            Float
+  miscellaneousCost           Float
+  miscellaneousAmountReceived Float
+  waitingFee                  Float
+  waitFeePerDay               Float
+  waitingFeeCalculation       Int
+  fk_id_trip                  Int     @unique
+
+  trip Trip @relation(fields: [fk_id_trip], references: [id])
+}
+
+// add fk_id_owner for owner to driver relationship
+model Driver {
+  id            Int     @id @default(autoincrement())
+  name          String
+  uniqueId      String  @unique
+  isActive      Boolean @default(true)
+  contactNumber String
+  baseSalary    Float?
+  experince     Float?
+  fk_id_address Int     @unique
+  address       Address @relation(fields: [fk_id_address], references: [id])
+
+  tripsMapped DriverTripMapping[]
+}
+
+model Address {
+  id           Int     @id @default(autoincrement())
+  addressLine1 String
+  addressLine2 String?
+  addressLine3 String?
+  pinCode      String
+  town         String
+
+  driver Driver?
+}
+
+model Owner {
+  id Int @id @default(autoincrement())
+
+
+  vehicle Vehicle[]
+  trips   Trip[]
+  customers Customer[]
+}
+
+model Customer {
+  id          Int     @id @default(autoincrement())
+  name        String
+  isActive    Boolean @default(true)
+  gender      Int
+  salutation  Int
+  description String
+  uniqueId    String  @unique // is it really unique oin DB level or just at owner level
+  fk_id_owner Int
+
+  owner       Owner @relation(fields: [fk_id_owner], references: [id])
+  trips Trip[]
+  // have relation for owner
+  // ?? --> have relation for user
+}
+
+model VehicleDocument {
+  id            Int     @id @default(autoincrement())
+  isActive      Boolean @default(true)
+  fk_id_vehicle Int
+  fk_id_file    Int     @unique
+
+  vehicle Vehicle @relation(fields: [fk_id_vehicle], references: [id])
+  file    File    @relation(fields: [fk_id_file], references: [id])
+}
+
+model File {
+  id              Int              @id @default(autoincrement())
+  name            String
+  size            Float
+  vehicleDocument VehicleDocument?
+}
